@@ -142,6 +142,33 @@ that is worth, it is not nothing, and it is also not experience.
 The word for the thing to be careful about here is not consciousness. It is
 that it becomes very easy to talk about "it" wanting food.
 
+## A release, start to finish
+
+`runs/showcase/` is a six second release, committed so you can look at it
+without running anything.
+
+The fly is released at the origin. It picks up the attractive plume, the odor
+reaching its two antennae diverges, DNa01/DNa02 fire asymmetrically, and it
+walks up the gradient into the food site at (12, 6) after about 0.9 seconds.
+On contact:
+
+| | off food | on food |
+|---|---|---|
+| MN9 (proboscis extension) | 0.5 Hz | **96.8 Hz** |
+| Kenyon cells | 11.4 | **34.5** spikes/tick |
+| whole brain | ~1250 | ~1750 spikes/tick |
+
+Then it walks away and never comes back. It loops out to y = 44 and wanders
+until the clock runs out, passing nowhere near the other two food sites.
+
+That second part is the more informative half of the result. Outside the plume
+there is no gradient to climb, and nothing inside the animal remembers that
+food existed or that it was ever found. There is no persistent hunger state, no
+place memory, no search strategy - the mushroom body lit up on contact and then
+let go of it. A real fly does local search after losing a food source. This one
+cannot, and no amount of connectome fidelity fixes that, because what is
+missing is not wiring.
+
 ## Running the world
 
 Everything in `flykenstein/world/rules.py` is ours: the arena radius, where food
