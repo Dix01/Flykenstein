@@ -1,0 +1,7 @@
+.venv/
+third_party/
+__pycache__/
+*.pyc
+# Raw Codex exports: re-fetchable in ~1 min via scripts/fetch_data.sh
+data/flywire_783/
+runs/
