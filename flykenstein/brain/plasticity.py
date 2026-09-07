@@ -41,6 +41,7 @@ class PlasticityParams:
     kc_ref_hz: float = 20.0       # KC rate treated as fully active
     da_ref_hz: float = 100.0      # phasic rate *above baseline* = full dopamine
     floor: float = 0.15           # a synapse never falls below this of baseline
+    warmup_ms: float = 300.0      # settle the network before anything may learn
 
 
 class MushroomBody:
@@ -92,6 +93,7 @@ class MushroomBody:
         self.da = np.zeros(len(self.mbon), dtype=np.float32)
         self.dan_base = np.full(len(self.dan), np.nan, dtype=np.float32)
         self.dan_fast = np.zeros(len(self.dan), dtype=np.float32)
+        self.elapsed_ms = 0.0
 
     def reset_weights(self) -> None:
         self.brain.W.data[self.ptr] = self.w0
@@ -134,6 +136,16 @@ class MushroomBody:
         self.da += (self.C.T @ phasic) * rise
         self.da -= self.da * (dt_ms / p.tau_da_ms)
         np.clip(self.da, 0, 1, out=self.da)
+
+        # A release begins from an artificial all-silent initial condition, so
+        # dopaminergic rates climb from zero to their tonic level over the first
+        # few hundred milliseconds. That ramp is not a reward - it is the
+        # network waking up - and left alone it writes a burst of spurious
+        # memory into every release before anything has happened.
+        self.elapsed_ms += dt_ms
+        if self.elapsed_ms < p.warmup_ms:
+            return {"da_max": float(self.da.max()), "elig_mean": float(self.elig.mean()),
+                    "depressed": float(self.depression())}
 
         w = self.brain.W.data[self.ptr]
         drive = self.elig[self.pre_slot] * self.da[self.post_slot]
@@ -181,10 +193,14 @@ class MushroomBody:
         z = np.load(path)
         if z["w"].shape != self.ptr.shape:
             raise ValueError("saved memory does not match this connectome build")
+        # Only the weights are memory. Eligibility and dopamine level are
+        # momentary traces measured in hundreds of milliseconds; carrying them
+        # across the gap between one release and the next means a release
+        # inherits the previous one's dopamine and keeps depressing on it.
         self.brain.W.data[self.ptr] = z["w"]
-        self.elig = z["elig"]
-        self.da = z["da"]
+        self.elig[:] = 0.0
+        self.da[:] = 0.0
+        self.elapsed_ms = 0.0
         if "dan_base" in z:
             self.dan_base = z["dan_base"]
-        if "dan_fast" in z:
-            self.dan_fast = z["dan_fast"]
+            self.dan_fast = z.get("dan_fast", z["dan_base"])
