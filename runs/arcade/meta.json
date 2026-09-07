@@ -1,0 +1,79 @@
+{
+  "score": -12173,
+  "seed": 0,
+  "ended": "time",
+  "distance_mm": 151.13496316829412,
+  "seconds": 8.0,
+  "wall_s": 1022.3900525569916,
+  "memory_start": 0.0,
+  "memory_end": 0.05653047561645508,
+  "feeds": 10,
+  "hazard_ticks": 69,
+  "no_food": false,
+  "food_sites": [
+    [
+      12.0,
+      6.0
+    ],
+    [
+      -9.0,
+      -14.0
+    ],
+    [
+      20.0,
+      -18.0
+    ]
+  ],
+  "hazard_sites": [
+    [
+      -14.0,
+      10.0
+    ],
+    [
+      6.0,
+      -22.0
+    ]
+  ],
+  "arena_radius_mm": 60.0,
+  "neurons": 139255,
+  "synapses": 2656027,
+  "plastic": 21438,
+  "achievements": [
+    {
+      "id": "first_taste",
+      "name": "First Taste",
+      "how": "extended the proboscis on food",
+      "at": 3.715
+    },
+    {
+      "id": "forager",
+      "name": "Forager",
+      "how": "fed at two different sites",
+      "at": null
+    },
+    {
+      "id": "it_remembers",
+      "name": "It Remembers",
+      "how": "formed more than 1% memory",
+      "at": 3.79
+    },
+    {
+      "id": "survivor",
+      "name": "Survivor",
+      "how": "ended with more energy than it started",
+      "at": null
+    },
+    {
+      "id": "burned",
+      "name": "Burned",
+      "how": "walked into a hazard",
+      "at": 7.125
+    },
+    {
+      "id": "wanderer",
+      "name": "Wanderer",
+      "how": "covered more than 100 mm",
+      "at": 8.0
+    }
+  ]
+}

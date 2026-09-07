@@ -239,21 +239,23 @@ function rowAt(t){
   while(lo<hi){ const mid=(lo+hi)>>1; if(ROWS[mid][ix.t_s]<t) lo=mid+1; else hi=mid; }
   return ROWS[lo];
 }
+// The trace is thinned for drawing, so each row here stands for `perTick`
+// real control ticks. Per-tick terms are weighted by that; the survival and
+// memory terms already telescope over the whole run.
+const perTick = D.full_n/Math.max(ROWS.length,1);
 function scoreTo(t){
   let s=0, prev=ROWS.length?ROWS[0][ix.depressed]:0;
   const dt = T_END/Math.max(ROWS.length,1);
   for(const r of ROWS){
     if(r[ix.t_s]>t) break;
-    if(r[ix.on_food] && r[ix.mn9]>5) s += 100;
-    if(r[ix.on_hazard]) s -= 200;
+    if(r[ix.on_food] && r[ix.mn9]>5) s += 100*perTick;
+    if(r[ix.on_hazard]) s -= 200*perTick;
     s += 50*dt;
     s += 4000*Math.max(0, r[ix.depressed]-prev);
     prev = r[ix.depressed];
   }
   return s;
 }
-const SCORE_END = Math.max(scoreTo(T_END),1);
-const SCALE = M.score/SCORE_END;
 
 /* ---------- arena ---------- */
 const map = g('map'), mx = map.getContext('2d');
@@ -328,7 +330,9 @@ function drawTrace(t){
 function render(){
   const r=rowAt(clock); if(!r) return;
   g('tnow').textContent = clock.toFixed(2);
-  g('score').textContent = Math.round(scoreTo(clock)*SCALE).toLocaleString();
+  const sc = Math.round(scoreTo(clock)) + 0;   // + 0 turns -0 back into 0
+  g('score').textContent = sc.toLocaleString();
+  g('score').style.color = sc < 0 ? 'var(--hazard)' : 'var(--ach)';
   g('scrub').value = Math.round(clock/T_END*1000);
 
   METERS.forEach((m,i)=>{
@@ -408,5 +412,10 @@ g('note').innerHTML = `
   ${ctrl?'<b>This run is the control world — no food anywhere.</b> Memory should stay flat; if it climbs, something is manufacturing it.':''}</p>`;
 
 setClock(0); render();
-if(vid) vid.addEventListener('loadedmetadata', ()=>{ setClock(0); render(); });
+// A video parked at currentTime 0 does not paint a frame until it is seeked,
+// which leaves the panel blank until the first play. Nudge it.
+if(vid) vid.addEventListener('loadedmetadata', ()=>{
+  vid.currentTime = Math.min(0.04, (vid.duration||1)/100);
+  render();
+});
 </script>
