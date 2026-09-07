@@ -63,6 +63,9 @@ class Brain:
             (z["fast_data"], z["fast_indices"], z["fast_indptr"]), shape=(n, n))
         self.M = sparse.csr_matrix(
             (z["mod_data"], z["mod_indices"], z["mod_indptr"]), shape=(n, n))
+        # Monoamine edges sit in the fast matrix as explicit zeros; drop them so
+        # nnz means "edge that can carry current" and so synapse indices are stable.
+        self.W.eliminate_zeros()
         self.root_id = z["root_id"]
         self.mod_kind = z["mod_kind"]
         self.meta = pd.read_parquet(meta)

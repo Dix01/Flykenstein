@@ -40,10 +40,19 @@ def load_metadata() -> pd.DataFrame:
     )
     stats = pd.read_csv(RAW / "cell_stats.csv.gz", dtype={"root_id": np.int64})
 
+    # Soma/centroid positions, needed for anatomical maps such as the
+    # ellipsoid-body compass and the optic-lobe retinotopy.
+    coord = pd.read_csv(RAW / "coordinates.csv.gz", dtype={"root_id": np.int64},
+                        usecols=["root_id", "position"]).drop_duplicates("root_id")
+    xyz = np.array([np.fromstring(s.strip("[]"), sep=" ") for s in coord["position"]])
+    coord = pd.DataFrame({"root_id": coord["root_id"].to_numpy(),
+                          "x": xyz[:, 0], "y": xyz[:, 1], "z": xyz[:, 2]})
+
     meta = (
         cls.merge(neu, on="root_id", how="left")
         .merge(types, on="root_id", how="left")
         .merge(stats, on="root_id", how="left")
+        .merge(coord, on="root_id", how="left")
     )
     # Deterministic order so indices are stable across rebuilds.
     meta = meta.sort_values("root_id", kind="stable").reset_index(drop=True)
