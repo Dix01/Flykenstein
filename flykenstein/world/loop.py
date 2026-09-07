@@ -216,6 +216,17 @@ class Release:
 
     # ---- the run ---------------------------------------------------------
     def run(self, verbose: bool = True):
+        """Run to completion and return the telemetry as a frame."""
+        for _ in self.iter_run(verbose=verbose):
+            pass
+        return self.telemetry.frame()
+
+    def iter_run(self, verbose: bool = False):
+        """Run the release, yielding each control tick's telemetry as it happens.
+
+        Same loop as `run`, exposed a tick at a time so a caller can draw a
+        display while the simulation is still computing.
+        """
         r = self.rules
         obs, _ = self.sim.reset(seed=r.seed)
         n_ctrl = int(round(r.duration_s * 1000.0 / r.control_ms))
@@ -288,6 +299,8 @@ class Release:
                 on_food=bool(info["on_food"]), on_hazard=bool(info["on_hazard"]),
             )
 
+            yield self.telemetry.rows[-1]
+
             if verbose and tick % max(1, n_ctrl // 20) == 0:
                 print(f"  t={self.telemetry.rows[-1]['t_s']:5.2f}s  "
                       f"xy=({info['xy'][0]:6.2f},{info['xy'][1]:6.2f})  "
@@ -307,7 +320,6 @@ class Release:
 
         self.wall_s = time.time() - t_wall
         self.life.save(self.mb)
-        return self.telemetry.frame()
 
     def save_video(self, path) -> bool:
         if self.camera is None:

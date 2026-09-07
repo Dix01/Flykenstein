@@ -1,0 +1,412 @@
+<title>Flykenstein Console</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  /* An instrument console, committed to one visual world: a dark recording
+     screen. Every colour is painted explicitly so it holds on either host
+     ground. Palette follows FlyWire's own neurotransmitter convention -
+     amber is acetylcholine (excitatory), blue is GABA (inhibitory),
+     magenta is dopamine, the signal that writes memory. */
+  :root{
+    --ground:#0A0E12; --panel:#131A22; --panel-2:#0E141B; --rule:#202C38;
+    --ink:#D8E0E8; --dim:#69798A; --dimmer:#44515F;
+    --ach:#E8A33D; --gaba:#4A90D9; --da:#C556C5;
+    --food:#4FBF7F; --hazard:#E0524F;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --cond:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--ground);color:var(--ink);font-family:var(--sans);
+       font-size:15px;line-height:1.55;margin:0;padding:0 20px 64px;
+       -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto}
+
+  /* header */
+  header{display:flex;flex-wrap:wrap;align-items:flex-end;gap:24px;
+         padding:28px 0 18px;border-bottom:1px solid var(--rule)}
+  h1{font-family:var(--cond);font-weight:700;font-size:30px;letter-spacing:.01em;
+     margin:0;text-wrap:balance}
+  h1 .sub{color:var(--dim);font-weight:600}
+  .ident{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:6px}
+  .ident b{color:var(--ach);font-weight:500}
+  .scorebox{margin-left:auto;text-align:right}
+  .scorebox .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+                 text-transform:uppercase;color:var(--dimmer)}
+  .score{font-family:var(--mono);font-weight:600;font-size:40px;line-height:1;
+         font-variant-numeric:tabular-nums;color:var(--ach)}
+
+  /* transport */
+  .transport{display:flex;align-items:center;gap:14px;padding:14px 0;
+             border-bottom:1px solid var(--rule);flex-wrap:wrap}
+  button{font-family:var(--mono);font-size:12px;letter-spacing:.06em;
+         background:var(--panel);color:var(--ink);border:1px solid var(--rule);
+         padding:7px 14px;cursor:pointer;border-radius:2px}
+  button:hover{border-color:var(--ach);color:var(--ach)}
+  button[aria-pressed="true"]{background:var(--ach);color:var(--ground);
+                              border-color:var(--ach)}
+  button:focus-visible{outline:2px solid var(--ach);outline-offset:2px}
+  #scrub{flex:1;min-width:200px;accent-color:var(--ach)}
+  .clock{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums;
+         color:var(--dim)}
+  .clock b{color:var(--ink);font-weight:500}
+
+  /* main split */
+  .stage{display:grid;grid-template-columns:1.15fr 1fr;gap:16px;margin-top:16px}
+  @media (max-width:860px){.stage{grid-template-columns:1fr}}
+  .cell{background:var(--panel);border:1px solid var(--rule);border-radius:3px;
+        overflow:hidden;display:flex;flex-direction:column}
+  .cap{font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+       text-transform:uppercase;color:var(--dimmer);padding:9px 12px;
+       border-bottom:1px solid var(--rule);display:flex;justify-content:space-between}
+  .cap span{color:var(--dim)}
+  video,canvas{display:block;width:100%;background:var(--panel-2)}
+  video{aspect-ratio:4/3;object-fit:cover}
+  .novid{padding:40px 16px;text-align:center;color:var(--dim);font-family:var(--mono);
+         font-size:12px}
+
+  /* meters */
+  .meters{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
+          gap:10px;margin-top:16px}
+  .meter{background:var(--panel);border:1px solid var(--rule);border-radius:3px;
+         padding:11px 13px 13px}
+  .meter .k{font-family:var(--mono);font-size:10px;letter-spacing:.13em;
+            text-transform:uppercase;color:var(--dimmer)}
+  .meter .v{font-family:var(--mono);font-size:22px;font-weight:500;line-height:1.25;
+            font-variant-numeric:tabular-nums;margin-top:2px}
+  .meter .n{font-size:11px;color:var(--dim);font-family:var(--mono)}
+  .track{height:4px;background:var(--panel-2);border-radius:2px;margin-top:8px;
+         overflow:hidden}
+  .fill{height:100%;width:0;transition:width .1s linear}
+
+  /* status flags */
+  .flags{display:flex;gap:8px;margin-top:14px;min-height:30px;flex-wrap:wrap}
+  .flag{font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+        text-transform:uppercase;padding:6px 12px;border-radius:2px;
+        border:1px solid;opacity:0;transition:opacity .12s}
+  .flag.on{opacity:1}
+  .flag.feed{color:var(--food);border-color:var(--food);background:#4FBF7F1A}
+  .flag.haz{color:var(--hazard);border-color:var(--hazard);background:#E0524F1A}
+  .flag.learn{color:var(--da);border-color:var(--da);background:#C556C51A}
+
+  /* trace */
+  .trace{margin-top:16px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;
+          color:var(--dim);padding:9px 12px;border-bottom:1px solid var(--rule)}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:1px;
+            margin-right:6px;vertical-align:-1px}
+
+  /* achievements */
+  h2{font-family:var(--cond);font-weight:700;font-size:17px;letter-spacing:.02em;
+     margin:34px 0 12px}
+  .ach{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+  .badge{display:flex;gap:11px;align-items:flex-start;padding:11px 13px;
+         border:1px solid var(--rule);border-radius:3px;background:var(--panel-2);
+         opacity:.42;transition:opacity .2s,border-color .2s,background .2s}
+  .badge.got{opacity:1;border-color:var(--ach);background:#E8A33D14}
+  .badge .pip{font-family:var(--mono);color:var(--dimmer);font-size:14px;line-height:1.4}
+  .badge.got .pip{color:var(--ach)}
+  .badge .nm{font-family:var(--cond);font-weight:600;font-size:14px}
+  .badge .hw{font-size:12px;color:var(--dim);line-height:1.4}
+  .badge .at{font-family:var(--mono);font-size:11px;color:var(--ach);margin-top:2px}
+
+  /* footer */
+  .note{margin-top:36px;padding-top:20px;border-top:1px solid var(--rule);
+        color:var(--dim);font-size:13.5px;max-width:66ch}
+  .note b{color:var(--ink);font-weight:500}
+  .note p{margin:0 0 11px}
+  .note code{font-family:var(--mono);font-size:12.5px;color:var(--ach)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Flykenstein <span class="sub">— release console</span></h1>
+      <div class="ident" id="ident"></div>
+    </div>
+    <div class="scorebox">
+      <div class="lbl">Score</div>
+      <div class="score" id="score">0</div>
+    </div>
+  </header>
+
+  <div class="transport">
+    <button id="play" aria-pressed="false">▶ Play</button>
+    <button class="spd" data-s="0.25">0.25×</button>
+    <button class="spd" data-s="1" aria-pressed="true">1× real time</button>
+    <button class="spd" data-s="3">3×</button>
+    <input id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Scrub through the release">
+    <div class="clock"><b id="tnow">0.00</b> / <span id="tend">0.00</span> s lived</div>
+  </div>
+
+  <div class="stage">
+    <div class="cell">
+      <div class="cap">The animal <span id="capa">NeuroMechFly v2 · MuJoCo</span></div>
+      <div id="vidhost"></div>
+    </div>
+    <div class="cell">
+      <div class="cap">Arena <span id="capb"></span></div>
+      <canvas id="map" width="720" height="620"></canvas>
+    </div>
+  </div>
+
+  <div class="flags">
+    <div class="flag feed" id="fFeed">★ Feeding — MN9 firing</div>
+    <div class="flag haz" id="fHaz">☠ Hazard</div>
+    <div class="flag learn" id="fLearn">● Dopamine — writing memory</div>
+  </div>
+
+  <div class="meters" id="meters"></div>
+
+  <div class="cell trace">
+    <div class="cap">Chart recorder <span>whole run, playhead at current time</span></div>
+    <div class="legend">
+      <span><i style="background:var(--ach)"></i>brain-wide spikes</span>
+      <span><i style="background:var(--gaba)"></i>Kenyon cells active</span>
+      <span><i style="background:var(--da)"></i>memory formed</span>
+      <span><i style="background:var(--food)"></i>energy</span>
+    </div>
+    <canvas id="trace" width="1140" height="240"></canvas>
+  </div>
+
+  <h2>Achievements</h2>
+  <div class="ach" id="ach"></div>
+
+  <div class="note" id="note"></div>
+</div>
+
+<script>
+const D = /*__DATA__*/null;
+const M = D.meta, COLS = D.cols, ROWS = D.rows;
+const ix = {}; COLS.forEach((c,i)=>ix[c]=i);
+const g = id => document.getElementById(id);
+const T_END = M.seconds || (ROWS.length?ROWS[ROWS.length-1][ix.t_s]:0);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+g('ident').innerHTML = `<b>${M.neurons.toLocaleString()}</b> neurons · `
+  + `<b>${M.synapses.toLocaleString()}</b> synapses · `
+  + `<b>${M.plastic.toLocaleString()}</b> able to change · seed ${M.seed ?? 0}`;
+g('tend').textContent = T_END.toFixed(2);
+g('capb').textContent = `${M.arena_radius_mm} mm radius · ${M.food_sites.length} food · ${M.hazard_sites.length} hazard`;
+
+/* ---------- meters ---------- */
+const METERS = [
+  {k:'energy',   key:'energy',    lo:0, hi:1.2, c:'--food', fmt:v=>v.toFixed(3), n:'0 ends the run'},
+  {k:'hunger',   key:'hunger',    lo:0, hi:1,   c:'--ach',  fmt:v=>v.toFixed(3), n:'opens the food senses'},
+  {k:'memory',   key:'depressed', lo:0, hi:.06, c:'--da',   fmt:v=>(v*100).toFixed(2)+'%', n:'KC→MBON weight lost'},
+  {k:'kenyon cells', key:'kc_active', lo:0, hi:120, c:'--gaba', fmt:v=>v.toFixed(0), n:'of 5,177 · sparse odour code'},
+  {k:'brain',    key:'spikes',    lo:0, hi:2200, c:'--ach',  fmt:v=>v.toFixed(0), n:'spikes per 5 ms tick'},
+  {k:'steering', key:'__turn',    lo:-1, hi:1,  c:'--gaba', fmt:v=>(v>0?'right ':'left ')+Math.abs(v).toFixed(2), n:'DNa01/DNa02 asymmetry'},
+];
+g('meters').innerHTML = METERS.map((m,i)=>`
+  <div class="meter">
+    <div class="k">${m.k}</div>
+    <div class="v" id="mv${i}" style="color:${'var('+m.c+')'}">—</div>
+    <div class="n">${m.n}</div>
+    <div class="track"><div class="fill" id="mf${i}" style="background:${'var('+m.c+')'}"></div></div>
+  </div>`).join('');
+
+/* ---------- achievements ---------- */
+g('ach').innerHTML = M.achievements.map(a=>`
+  <div class="badge" id="ab_${a.id}">
+    <div class="pip">${a.at!=null?'★':'○'}</div>
+    <div><div class="nm">${a.name}</div><div class="hw">${a.how}</div>
+    ${a.at!=null?`<div class="at">unlocked at ${a.at.toFixed(2)} s</div>`:''}</div>
+  </div>`).join('');
+
+/* ---------- video or synthetic clock ---------- */
+let clock = 0, playing = false, speed = 1, last = 0, vid = null;
+if (D.video) {
+  vid = document.createElement('video');
+  vid.src = D.video; vid.playsInline = true; vid.loop = false; vid.muted = true;
+  vid.preload = 'auto';
+  g('vidhost').appendChild(vid);
+} else {
+  g('vidhost').innerHTML = `<div class="novid">no video for this run<br>
+    (the control world was rendered headless)</div>`;
+}
+
+function videoScale(){ return (vid && vid.duration && isFinite(vid.duration)) ? T_END/vid.duration : 1; }
+function setClock(t){
+  clock = Math.max(0, Math.min(T_END, t));
+  if (vid && vid.duration && isFinite(vid.duration)) vid.currentTime = clock/videoScale();
+}
+
+/* ---------- row lookup ---------- */
+function rowAt(t){
+  let lo=0, hi=ROWS.length-1;
+  if(!ROWS.length) return null;
+  while(lo<hi){ const mid=(lo+hi)>>1; if(ROWS[mid][ix.t_s]<t) lo=mid+1; else hi=mid; }
+  return ROWS[lo];
+}
+function scoreTo(t){
+  let s=0, prev=ROWS.length?ROWS[0][ix.depressed]:0;
+  const dt = T_END/Math.max(ROWS.length,1);
+  for(const r of ROWS){
+    if(r[ix.t_s]>t) break;
+    if(r[ix.on_food] && r[ix.mn9]>5) s += 100;
+    if(r[ix.on_hazard]) s -= 200;
+    s += 50*dt;
+    s += 4000*Math.max(0, r[ix.depressed]-prev);
+    prev = r[ix.depressed];
+  }
+  return s;
+}
+const SCORE_END = Math.max(scoreTo(T_END),1);
+const SCALE = M.score/SCORE_END;
+
+/* ---------- arena ---------- */
+const map = g('map'), mx = map.getContext('2d');
+function drawMap(t){
+  const W=map.width, H=map.height, R=M.arena_radius_mm;
+  const cx=W/2, cy=H/2, k=Math.min(W,H)/2/R*0.9;
+  const P=(x,y)=>[cx+x*k, cy-y*k];
+  mx.fillStyle=css('--panel-2'); mx.fillRect(0,0,W,H);
+  mx.strokeStyle=css('--rule'); mx.lineWidth=1;
+  for(const r of [R/3,2*R/3,R]){ mx.beginPath(); mx.arc(cx,cy,r*k,0,7); mx.stroke(); }
+  mx.beginPath(); mx.moveTo(0,cy); mx.lineTo(W,cy); mx.moveTo(cx,0); mx.lineTo(cx,H); mx.stroke();
+
+  for(const [fx,fy] of M.food_sites){ const [px,py]=P(fx,fy);
+    mx.fillStyle=css('--food')+'33'; mx.beginPath(); mx.arc(px,py,2*k,0,7); mx.fill();
+    mx.fillStyle=css('--food'); mx.beginPath(); mx.arc(px,py,5,0,7); mx.fill(); }
+  for(const [hx,hy] of M.hazard_sites){ const [px,py]=P(hx,hy);
+    mx.fillStyle=css('--hazard')+'33'; mx.beginPath(); mx.arc(px,py,2*k,0,7); mx.fill();
+    mx.strokeStyle=css('--hazard'); mx.lineWidth=2; mx.beginPath();
+    mx.moveTo(px-5,py-5); mx.lineTo(px+5,py+5); mx.moveTo(px+5,py-5); mx.lineTo(px-5,py+5); mx.stroke(); }
+
+  mx.lineWidth=2; mx.lineJoin='round';
+  let started=false; mx.beginPath();
+  for(const r of ROWS){ if(r[ix.t_s]>t) break;
+    const [px,py]=P(r[ix.x],r[ix.y]);
+    if(!started){ mx.moveTo(px,py); started=true; } else mx.lineTo(px,py); }
+  mx.strokeStyle=css('--ach'); mx.stroke();
+
+  const r=rowAt(t); if(!r) return;
+  const [px,py]=P(r[ix.x],r[ix.y]);
+  mx.fillStyle = r[ix.on_food]?css('--food') : r[ix.on_hazard]?css('--hazard') : css('--ink');
+  mx.beginPath(); mx.arc(px,py,6,0,7); mx.fill();
+  mx.strokeStyle=css('--ground'); mx.lineWidth=2; mx.stroke();
+  mx.fillStyle=css('--dim'); mx.font='12px "IBM Plex Mono", monospace';
+  mx.fillText(`${r[ix.x].toFixed(1)}, ${r[ix.y].toFixed(1)} mm`, 12, H-14);
+}
+
+/* ---------- chart recorder ---------- */
+const tr = g('trace'), tx = tr.getContext('2d');
+function series(key, lo, hi){
+  return ROWS.map(r=>{ const v=(r[ix[key]]-lo)/(hi-lo||1); return Math.max(0,Math.min(1,v)); });
+}
+const CHANS = [
+  {key:'spikes',    lo:0, hi:2200, c:'--ach'},
+  {key:'kc_active', lo:0, hi:120,  c:'--gaba'},
+  {key:'depressed', lo:0, hi:.06,  c:'--da'},
+  {key:'energy',    lo:0, hi:1.2,  c:'--food'},
+];
+function drawTrace(t){
+  const W=tr.width, H=tr.height, pad=26;
+  tx.fillStyle=css('--panel-2'); tx.fillRect(0,0,W,H);
+  tx.strokeStyle=css('--rule'); tx.lineWidth=1;
+  for(let i=0;i<=4;i++){ const y=pad+(H-2*pad)*i/4;
+    tx.beginPath(); tx.moveTo(pad,y); tx.lineTo(W-pad,y); tx.stroke(); }
+  const X=i=>pad+(W-2*pad)*(ROWS[i][ix.t_s]/T_END);
+  for(const ch of CHANS){
+    const s=series(ch.key,ch.lo,ch.hi);
+    tx.strokeStyle=css(ch.c); tx.lineWidth=1.6; tx.beginPath();
+    s.forEach((v,i)=>{ const y=H-pad-(H-2*pad)*v; i?tx.lineTo(X(i),y):tx.moveTo(X(i),y); });
+    tx.stroke();
+  }
+  ROWS.forEach((r,i)=>{ if(r[ix.on_food]){ tx.fillStyle=css('--food')+'22';
+      tx.fillRect(X(i),pad,Math.max(1,(W-2*pad)/ROWS.length),H-2*pad); } });
+  const px=pad+(W-2*pad)*(t/T_END);
+  tx.strokeStyle=css('--ink'); tx.lineWidth=1; tx.beginPath();
+  tx.moveTo(px,pad-6); tx.lineTo(px,H-pad+6); tx.stroke();
+  tx.fillStyle=css('--dimmer'); tx.font='11px "IBM Plex Mono", monospace';
+  tx.fillText('0 s',pad,H-8); tx.textAlign='right';
+  tx.fillText(T_END.toFixed(1)+' s',W-pad,H-8); tx.textAlign='left';
+}
+
+/* ---------- render ---------- */
+function render(){
+  const r=rowAt(clock); if(!r) return;
+  g('tnow').textContent = clock.toFixed(2);
+  g('score').textContent = Math.round(scoreTo(clock)*SCALE).toLocaleString();
+  g('scrub').value = Math.round(clock/T_END*1000);
+
+  METERS.forEach((m,i)=>{
+    const v = m.key==='__turn'
+      ? (r[ix.dn_right]-r[ix.dn_left])/20
+      : r[ix[m.key]];
+    g('mv'+i).textContent = m.fmt(v);
+    g('mf'+i).style.width = (Math.max(0,Math.min(1,(v-m.lo)/(m.hi-m.lo)))*100)+'%';
+  });
+
+  g('fFeed').classList.toggle('on', !!r[ix.on_food] && r[ix.mn9]>5);
+  g('fHaz').classList.toggle('on', !!r[ix.on_hazard]);
+  g('fLearn').classList.toggle('on', r[ix.da_max]>0.25);
+
+  M.achievements.forEach(a=>{
+    const el=g('ab_'+a.id); if(el) el.classList.toggle('got', a.at!=null && clock>=a.at);
+  });
+
+  drawMap(clock); drawTrace(clock);
+}
+
+/* ---------- transport ---------- */
+function setPlaying(p){
+  playing=p; g('play').setAttribute('aria-pressed',String(p));
+  g('play').textContent = p?'❚❚ Pause':'▶ Play';
+  if(vid){ if(p){ vid.playbackRate = Math.min(4,Math.max(.25,speed/videoScale())); vid.play().catch(()=>{}); } else vid.pause(); }
+  if(p){ last=performance.now(); requestAnimationFrame(tickLoop); }
+}
+function tickLoop(now){
+  if(!playing) return;
+  const dt=(now-last)/1000; last=now;
+  // With a video, it owns the clock - seeking it every frame would stutter.
+  if(vid && vid.duration && isFinite(vid.duration) && !vid.paused)
+    clock = Math.min(T_END, vid.currentTime * videoScale());
+  else
+    setClock(clock + dt*speed);
+  render();
+  if(clock>=T_END){ setPlaying(false); return; }
+  requestAnimationFrame(tickLoop);
+}
+g('play').onclick = ()=>setPlaying(!playing);
+g('scrub').oninput = e => { setClock(e.target.value/1000*T_END); render(); };
+document.querySelectorAll('.spd').forEach(b=>{
+  b.onclick = ()=>{
+    speed=parseFloat(b.dataset.s);
+    document.querySelectorAll('.spd').forEach(o=>o.setAttribute('aria-pressed',String(o===b)));
+    if(vid && playing) vid.playbackRate = Math.min(4,Math.max(.25,speed/videoScale()));
+  };
+});
+document.addEventListener('keydown', e=>{
+  if(e.code==='Space'){ e.preventDefault(); setPlaying(!playing); }
+});
+
+/* ---------- honest footer ---------- */
+const ctrl = M.no_food;
+g('note').innerHTML = `
+  <p><b>What you are watching.</b> A real fruit fly's brain — the FlyWire
+  reconstruction of ${M.neurons.toLocaleString()} neurons and
+  ${M.synapses.toLocaleString()} synapses, imaged from one animal by electron
+  microscope — spiking in a physics-simulated body. Playback at 1× runs at the
+  speed the fly lived it. Computing those ${T_END.toFixed(1)} seconds took
+  ${(M.wall_s/60).toFixed(0)} minutes, about
+  ${Math.round(M.wall_s/Math.max(T_END,.01))}× slower than life, so this is a
+  recording rather than a window.</p>
+  <p><b>What is real and what is ours.</b> The wiring, the neurotransmitter
+  signs, the sensory neurons, the ${M.plastic.toLocaleString()} plastic
+  mushroom-body synapses and the dopaminergic compartments that govern them all
+  come from the connectome. The arena, the scoring, the energy budget and the
+  mapping from descending neurons onto walking are ours — that last one because
+  the wiring from brain to muscle lives in the ventral nerve cord, a different
+  dataset.</p>
+  <p><b>The score is a game, not a measurement.</b> The fly cannot see it and is
+  not trying to win. It is a readable stand-in for what the telemetry already
+  shows. Memory is the one number here that is not decoration: it is the
+  fraction of Kenyon-cell-to-MBON weight actually lost to experience, and it
+  persists into the next release.
+  ${ctrl?'<b>This run is the control world — no food anywhere.</b> Memory should stay flat; if it climbs, something is manufacturing it.':''}</p>`;
+
+setClock(0); render();
+if(vid) vid.addEventListener('loadedmetadata', ()=>{ setClock(0); render(); });
+</script>
