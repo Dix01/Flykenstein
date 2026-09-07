@@ -44,11 +44,19 @@ class WorldRules:
     drive_min: float = -0.5
     drive_max: float = 1.5
 
+    # --- internal machinery ----------------------------------------------
+    mod_gain: float = 0.6                # monoamine gain on synaptic drive
+    learning: bool = True                # KC->MBON plasticity on
+    plasticity_eta: float = 4.0
+    compass_hz: float = 80.0             # drive on the EPG heading bump
+    life_path: str = "life"              # where memory and drives persist
+    carry_memory: bool = True            # load that memory before releasing
+
     # --- feedback the world writes back into the brain -------------------
     # Our rule, not the fly's: eating stimulates the dopaminergic population,
     # so the world can teach. Set to 0 for a purely feedforward release.
-    reward_dan_hz: float = 40.0
-    punish_dan_hz: float = 0.0
+    reward_dan_hz: float = 150.0         # PAM dopaminergic neurons, on food
+    punish_dan_hz: float = 150.0         # PPL1 dopaminergic neurons, on hazard
 
     # --- run control -----------------------------------------------------
     duration_s: float = 5.0

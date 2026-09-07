@@ -84,10 +84,11 @@ def main():
             active = np.flatnonzero(c[mb.kc] > 0)
             out[name] = {"mbon": mbon_rate(c, ports, a.test_ms),
                          "kc": kc_rate(c, ports, a.test_ms),
-                         "active": active}
-        print(f"{label:9s} MBON  CS+ {out['CS+']['mbon']:6.2f} Hz   "
-              f"CS- {out['CS-']['mbon']:6.2f} Hz   "
-              f"(KCs responding {len(out['CS+']['active'])} / {len(out['CS-']['active'])})")
+                         "active": active,
+                         "kc_drive": float(mb.kc_drive(c).sum())}
+        print(f"{label:9s} KC->MBON drive  CS+ {out['CS+']['kc_drive']:9.0f}   "
+              f"CS- {out['CS-']['kc_drive']:9.0f}     "
+              f"(MBON pop. {out['CS+']['mbon']:.2f} / {out['CS-']['mbon']:.2f} Hz)")
         return out
 
     before = test("before")
@@ -126,10 +127,15 @@ def main():
 
     after = test("after")
 
-    dplus = 100 * (after["CS+"]["mbon"] - before["CS+"]["mbon"]) / max(before["CS+"]["mbon"], 1e-9)
-    dminus = 100 * (after["CS-"]["mbon"] - before["CS-"]["mbon"]) / max(before["CS-"]["mbon"], 1e-9)
-    print(f"\nchange in MBON output:  CS+ {dplus:+.1f}%     CS- {dminus:+.1f}%")
+    def pct(k, key):
+        b0, a0 = before[k][key], after[k][key]
+        return 100 * (a0 - b0) / max(abs(b0), 1e-9)
+    dplus, dminus = pct("CS+", "kc_drive"), pct("CS-", "kc_drive")
+    print(f"\nchange in KC->MBON drive:  CS+ {dplus:+.1f}%     CS- {dminus:+.1f}%")
     print(f"learning specific to the paired odour: {dplus - dminus:+.1f} percentage points")
+    print(f"change in MBON population rate: "
+          f"CS+ {pct('CS+','mbon'):+.1f}%  CS- {pct('CS-','mbon'):+.1f}%  "
+          f"(diluted by non-mushroom-body input)")
 
 
 if __name__ == "__main__":

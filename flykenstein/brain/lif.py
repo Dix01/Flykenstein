@@ -41,8 +41,14 @@ class LIFParams:
     dt: float = 0.1           # integration step (ms)
 
     # Neuromodulator channel (not part of the published fast model).
+    # Monoamines are not a current source: they change how strongly a neuron
+    # responds to the input it is already getting. So the modulator field acts
+    # as a multiplicative gain on synaptic drive, normalised so that a
+    # presynaptic monoamine population firing at `mod_ref_hz` produces a field
+    # of about 1 and a gain of about (1 + mod_gain).
     mod_tau: float = 500.0    # ms; monoamine effects outlast synaptic ones
-    mod_gain: float = 0.0     # mV per unit modulator; 0 keeps the baseline model
+    mod_gain: float = 0.0     # fractional gain at full modulation; 0 = baseline
+    mod_ref_hz: float = 20.0  # presynaptic rate treated as full modulation
     f_poi: float = 250.0      # scaling of Poisson input synapses (Shiu et al.)
 
 
@@ -75,6 +81,11 @@ class Brain:
         self.rng = np.random.default_rng(seed)
 
         self.f_poi = self.p.f_poi
+        # Steady-state modulator field for a presynaptic population at
+        # mod_ref_hz: rate * tau * incoming modulatory weight * w_syn.
+        inflow = np.asarray(self.M.sum(axis=0)).ravel().astype(np.float32)
+        self.mod_scale = np.maximum(
+            inflow * self.p.w_syn * self.p.mod_ref_hz * (self.p.mod_tau * 1e-3), 1e-6)
         self._delay_steps = max(1, int(round(self.p.t_dly / self.p.dt)))
         self.reset()
 
@@ -134,9 +145,11 @@ class Brain:
         arrived = self._ring[self._ring_i].copy()
         self._ring[self._ring_i] = 0.0
 
-        self.g += arrived
+        # The gain scales synaptic transmission - the input arriving now - not
+        # the charge already accumulated, which would compound every step.
         if p.mod_gain:
-            self.g += p.mod_gain * self.mod
+            arrived = arrived * (1.0 + p.mod_gain * self.modulation())
+        self.g += arrived
         if inject is not None:
             self.g += inject
         poisson_kick = None
@@ -170,6 +183,10 @@ class Brain:
         self.t += dt
         self.step_count += 1
         return spiked
+
+    def modulation(self) -> np.ndarray:
+        """Normalised monoamine field, 0 at rest and ~1 at mod_ref_hz drive."""
+        return np.clip(self.mod / self.mod_scale, 0.0, 1.0)
 
     def run(self, ms: float, **kw) -> list[np.ndarray]:
         return [self.step(**kw) for _ in range(int(round(ms / self.p.dt)))]

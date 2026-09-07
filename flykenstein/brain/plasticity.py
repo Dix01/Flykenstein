@@ -32,11 +32,14 @@ from scipy import sparse
 @dataclass
 class PlasticityParams:
     eta: float = 0.9              # depression rate (per second at full drive)
+    tau_rise_ms: float = 100.0    # how fast a trace charges toward its drive
     tau_elig_ms: float = 1200.0   # how long a Kenyon cell stays eligible
     tau_da_ms: float = 400.0      # dopamine decay in a compartment
+    tau_fast_ms: float = 250.0    # smoothing of the dopaminergic rate itself
+    tau_base_ms: float = 5000.0   # adaptation of the tonic dopamine baseline
     tau_forget_s: float = 180.0   # drift of weights back to baseline
     kc_ref_hz: float = 20.0       # KC rate treated as fully active
-    da_ref_hz: float = 20.0       # DAN rate treated as full dopamine
+    da_ref_hz: float = 100.0      # phasic rate *above baseline* = full dopamine
     floor: float = 0.15           # a synapse never falls below this of baseline
 
 
@@ -87,6 +90,8 @@ class MushroomBody:
     def reset_state(self) -> None:
         self.elig = np.zeros(len(self.kc), dtype=np.float32)
         self.da = np.zeros(len(self.mbon), dtype=np.float32)
+        self.dan_base = np.full(len(self.dan), np.nan, dtype=np.float32)
+        self.dan_fast = np.zeros(len(self.dan), dtype=np.float32)
 
     def reset_weights(self) -> None:
         self.brain.W.data[self.ptr] = self.w0
@@ -101,12 +106,33 @@ class MushroomBody:
         kc_hz = counts[self.kc] / dt_s
         dan_hz = counts[self.dan] / dt_s
 
-        self.elig *= np.exp(-dt_ms / p.tau_elig_ms)
-        self.elig += np.clip(kc_hz / p.kc_ref_hz, 0, 1)
+        # Traces charge over tau_rise and discharge over their own time
+        # constant. Written as bare accumulators they would gain tau/dt per
+        # second and clip to 1 within a few ticks, which makes every trace
+        # binary and throws away exactly the grading the rule depends on.
+        rise = min(1.0, dt_ms / p.tau_rise_ms)
+        self.elig += np.clip(kc_hz / p.kc_ref_hz, 0, 1) * rise
+        self.elig -= self.elig * (dt_ms / p.tau_elig_ms)
         np.clip(self.elig, 0, 1, out=self.elig)
 
-        self.da *= np.exp(-dt_ms / p.tau_da_ms)
-        self.da += self.C.T @ np.clip(dan_hz / p.da_ref_hz, 0, 1)
+        # Only *phasic* dopamine teaches. Several dopaminergic populations -
+        # PPL1 in particular - fire tonically at tens of Hz just from ambient
+        # network activity, and treating that as a teaching signal would erode
+        # every compartment all the time. So each DAN's own slowly-adapting
+        # baseline is subtracted, and only the transient above it counts.
+        # A rate measured over one 5 ms tick is 0 Hz or 200 Hz and nothing in
+        # between, so the rate itself is smoothed first. Subtracting a slower
+        # baseline from a faster average leaves genuine transients and cancels
+        # the quantisation noise, which a bare rectifier would let straight in.
+        if np.isnan(self.dan_base[0]):
+            self.dan_base[:] = dan_hz
+            self.dan_fast[:] = dan_hz
+        self.dan_fast += (dan_hz - self.dan_fast) * min(1.0, dt_ms / p.tau_fast_ms)
+        phasic = np.clip((self.dan_fast - self.dan_base) / p.da_ref_hz, 0, 1)
+        self.dan_base += (dan_hz - self.dan_base) * min(1.0, dt_ms / p.tau_base_ms)
+
+        self.da += (self.C.T @ phasic) * rise
+        self.da -= self.da * (dt_ms / p.tau_da_ms)
         np.clip(self.da, 0, 1, out=self.da)
 
         w = self.brain.W.data[self.ptr]
@@ -133,10 +159,23 @@ class MushroomBody:
         base = np.bincount(self.post_slot, weights=self.w0, minlength=len(self.mbon))
         return np.divide(lost, base, out=np.zeros_like(lost), where=base > 0)
 
+    def kc_drive(self, counts: np.ndarray) -> np.ndarray:
+        """Excitation each MBON receives *from Kenyon cells*, per compartment.
+
+        This is the quantity the learning rule actually changes. An MBON's
+        total firing also reflects everything else that innervates it, so a
+        population average can hide a large, specific change in the mushroom
+        body pathway - this does not.
+        """
+        w = self.brain.W.data[self.ptr]
+        return np.bincount(self.post_slot, weights=w * counts[self.pre],
+                           minlength=len(self.mbon))
+
     # ---- persistence: this is what makes it a life and not a run ---------
     def save(self, path) -> None:
         np.savez_compressed(path, w=self.brain.W.data[self.ptr], w0=self.w0,
-                            elig=self.elig, da=self.da)
+                            elig=self.elig, da=self.da, dan_base=self.dan_base,
+                            dan_fast=self.dan_fast)
 
     def load(self, path) -> None:
         z = np.load(path)
@@ -145,3 +184,7 @@ class MushroomBody:
         self.brain.W.data[self.ptr] = z["w"]
         self.elig = z["elig"]
         self.da = z["da"]
+        if "dan_base" in z:
+            self.dan_base = z["dan_base"]
+        if "dan_fast" in z:
+            self.dan_fast = z["dan_fast"]
